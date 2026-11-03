@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
     --navy-950: #020817;
@@ -503,7 +504,7 @@
 
   <div class="card results-card" id="results-card" style="animation-delay:0s">
     <div class="card-label">Resultados</div>
-    <div class="stat-grid">
+<div class="stat-grid">
       <div class="stat">
         <div class="stat-val blue" id="stat-total">—</div>
         <div class="stat-lbl">Total Linhas</div>
@@ -517,6 +518,12 @@
         <div class="stat-lbl">Não Encontrados</div>
       </div>
     </div>
+    
+    <!-- Novo botão Baixar Todos -->
+    <button class="btn-process" id="btn-zip" onclick="downloadAllZip()" style="margin-bottom: 24px; display: none;">
+      <span>📦 Baixar Todos os Arquivos (.ZIP)</span>
+    </button>
+
     <div class="download-grid" id="download-grid">
       </div>
   </div>
@@ -532,6 +539,7 @@
 // ─────────────────────────────────────────────
 let fileMult    = null;
 let fileInvoice = null;
+let generatedFiles = []; // Guarda os arquivos para o ZIP
 
 function setupZone(zoneId, inputId, infoId, nameId, stateSetter) {
   const zone  = document.getElementById(zoneId);
@@ -917,11 +925,14 @@ for (let row of dataMult) {
       throw new Error('Validação falhou: Nenhuma linha válida foi cruzada.');
     }
 
-    // Preparar UI do Grid de Downloads
+// Preparar UI do Grid de Downloads
     const dlGrid = document.getElementById('download-grid');
     dlGrid.innerHTML = ''; 
+    generatedFiles = []; // Reseta os arquivos da execução anterior
 
     const createBtn = (blob, filename, icon, title, isError = false) => {
+      generatedFiles.push({ blob, filename }); // Salva para o ZIP
+
       const a = document.createElement('a');
       a.className = 'btn-download';
       a.href = blobUrl(blob);
@@ -952,10 +963,13 @@ for (let row of dataMult) {
       createBtn(csvBlob, 'log_nao_encontrados.csv', '⚠️', 'Log de Erros', true);
     }
 
-    // Preenche as Estatísticas Visuais
+// Preenche as Estatísticas Visuais
     document.getElementById('stat-total').textContent = validMult.length;
     document.getElementById('stat-found').textContent = foundCount;
     document.getElementById('stat-missing').textContent = missingRows.length;
+    
+    // Mostra o botão ZIP se houver arquivos
+    document.getElementById('btn-zip').style.display = generatedFiles.length > 0 ? 'block' : 'none';
 
     setStep(8, 100); await sleep(100);
     document.getElementById('results-card').classList.add('visible');
@@ -966,6 +980,39 @@ for (let row of dataMult) {
     showToast('❌ Erro: ' + err.message);
   } finally {
     document.getElementById('btn-process').disabled = false;
+  }
+}
+
+// Função para empacotar e baixar o ZIP
+async function downloadAllZip() {
+  if (generatedFiles.length === 0) return;
+  
+  const btn = document.getElementById('btn-zip');
+  btn.innerHTML = '<span>⏳ Compactando arquivos...</span>';
+  btn.disabled = true;
+
+  try {
+    const zip = new JSZip();
+    generatedFiles.forEach(file => {
+      zip.file(file.filename, file.blob);
+    });
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(zipBlob);
+    
+    // Nome dinâmico com a data e hora
+    const dateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    a.download = `Channel_Processamento_${dateStr}.zip`;
+    a.click();
+    
+    showToast('✅ ZIP baixado com sucesso!');
+  } catch (e) {
+    console.error(e);
+    showToast('❌ Erro ao gerar o ZIP.');
+  } finally {
+    btn.innerHTML = '<span>📦 Baixar Todos os Arquivos (.ZIP)</span>';
+    btn.disabled = false;
   }
 }
 </script>
