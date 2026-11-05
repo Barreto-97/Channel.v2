@@ -778,7 +778,7 @@ for (let row of dataMult) {
     rankData(validMult, r => buildKey(r[idxProduto], r[idxBoutique], r[idxQtde]));
     rankData(invData, r => buildKey(r[10], r[9], r[27]));
 
-    // ========================================================================
+// ========================================================================
     // 5. CRIAÇÃO DO MEGA-OBJETO (Sincronização Absoluta 1:1) E ORDENAÇÃO
     // ========================================================================
     setStep(5, 65); await sleep(50);
@@ -789,6 +789,20 @@ for (let row of dataMult) {
     let mergedData = [];
     let missingRows = [];
     let foundCount = 0;
+
+    // NOVO: Varredura de Alerta no Invoice Channel (Bar Code em branco)
+    invData.forEach(rInv => {
+      let invBarcode = cleanStr(rInv[23]); // 23 é o índice da Coluna X
+      if (!invBarcode || invBarcode === 'NAN') {
+        missingRows.push({
+          'Arquivo Origem': 'Invoice Channel',
+          'Motivo/Erro': 'Bar Code (Coluna X) está em branco',
+          'Chave': rInv._finalKey || 'N/A',
+          'Linha/Item': rInv[10] || '',   // Coluna K (Item)
+          'Referência': rInv[9] || ''     // Coluna J (Boutique Code)
+        });
+      }
+    });
 
     // FASE 1: Merge Mult com Invoice
     validMult.forEach(rMult => {
@@ -803,7 +817,14 @@ for (let row of dataMult) {
           rMult[idxEan] = barcode;
           foundCount++;
         } else {
-          missingRows.push({ ITEM: rMult[idxItem], PRODUTO: rMult[idxProduto], Chave: rMult._finalKey });
+          // Atualizado para manter o mesmo padrão de cabeçalho no CSV
+          missingRows.push({ 
+            'Arquivo Origem': 'Relatório Mult',
+            'Motivo/Erro': 'Sem EAN e não encontrou correspondência na Invoice',
+            'Chave': rMult._finalKey,
+            'Linha/Item': rMult[idxItem], 
+            'Referência': rMult[idxProduto]
+          });
         }
       } else {
         foundCount++;
